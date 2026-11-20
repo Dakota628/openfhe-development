@@ -38,6 +38,7 @@
 
 #define _USE_MATH_DEFINES
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -178,6 +179,37 @@ bool IsGenerator(const IntType& g, const IntType& q) {
     return cnt == primeFactors.size();
 }
 
+// For a known prime p = 1 (mod 8), p < 2^60 and p > 239, at least one odd
+// prime a <= 239 is a nonresidue mod p: L_239 = 1773855791877850321 > 2^60
+// (Lukes, Patterson and Williams, Table 4.1). Reciprocity gives (a/p)=(p/a).
+inline uint32_t SmallNativeNonresidue(uint64_t p) {
+    struct Entry {
+        uint32_t prime;
+        std::array<uint64_t, 4> squares;
+    };
+    static constexpr auto table = [] {
+        constexpr uint32_t primes[] = {
+            3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83,
+            89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
+            179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239};
+        std::array<Entry, sizeof(primes) / sizeof(primes[0])> entries{};
+        for (size_t i = 0; i < entries.size(); ++i) {
+            auto a = entries[i].prime = primes[i];
+            for (uint32_t j = 1; j <= a / 2; ++j) {
+                const auto r = (j * j) % a;
+                entries[i].squares[r / 64] |= uint64_t{1} << (r % 64);
+            }
+        }
+        return entries;
+    }();
+    for (const auto& e : table) {
+        const auto r = p % e.prime;
+        if (r && !(e.squares[r / 64] & (uint64_t{1} << (r % 64))))
+            return e.prime;
+    }
+    return 0;
+}
+
 /*
  finds roots of unity for given input.  Assumes the the input is a power of two.
  Mostly likely does not give correct results otherwise. input:  m as number
@@ -198,7 +230,19 @@ IntType RootOfUnity(uint32_t m, const IntType& modulo) {
         OPENFHE_THROW(errMsg);
     }
 
-    IntType gen = FindGenerator(modulo);
+    const IntType gen = [&]() -> IntType {
+        if constexpr (std::is_same_v<IntType, NativeInteger>) {
+            const auto bits = modulo.GetMSB();
+            if (m >= 2 && (m & (m - 1)) == 0 && bits >= 50 && bits <= 60) {
+                const auto p = modulo.template ConvertToInt<uint64_t>();
+                if ((p & 7) == 1) {
+                    if (auto a = SmallNativeNonresidue(p))
+                        return IntType(a);
+                }
+            }
+        }
+        return FindGenerator(modulo);
+    }();
     IntType result = gen.ModExp((modulo - IntType(1)).DividedBy(M), modulo);
     if (result == IntType(1))
         result = RootOfUnity(m, modulo);

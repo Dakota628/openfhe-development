@@ -374,6 +374,17 @@ TEST(UTNbTheory, method_primitive_root_of_unity_VERY_LONG) {
     RUN_ALL_BACKENDS_INT(method_primitive_root_of_unity_VERY_LONG, "method_primitive_root_of_unity_VERY_LONG")
 }
 
+#if NATIVEINT >= 64
+TEST(UTNbTheory, native_root_of_unity_preserves_minimum) {
+    // The odd primes through 23 are all quadratic residues for this modulus.
+    // 29 supplies a primitive root; the API must still return the minimum one.
+    const NativeInteger q("575679658721281");
+    EXPECT_EQ(RootOfUnity<NativeInteger>(1024, q), NativeInteger("649813628084"));
+    // Non-power-of-two orders still use the original generator search.
+    EXPECT_EQ(RootOfUnity<NativeInteger>(3, q), NativeInteger("137232156080134"));
+}
+#endif
+
 template <typename T>
 void test_nextQ(const std::string& msg) {
     uint32_t m = 2048;
