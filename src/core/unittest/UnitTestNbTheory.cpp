@@ -392,3 +392,12 @@ void test_nextQ(const std::string& msg) {
 TEST(UTNbTheory, test_nextQ) {
     RUN_ALL_BACKENDS_INT(test_nextQ, "test_nextQ")
 }
+
+TEST(UTNbTheory, canonical_power_of_two_root_pairs) {
+    const NativeInteger p(97);
+    EXPECT_EQ(RootOfUnity<NativeInteger>(2, p), NativeInteger(96));
+    EXPECT_EQ(RootOfUnity<NativeInteger>(4, p), NativeInteger(22));
+    EXPECT_EQ(RootOfUnity<NativeInteger>(16, p), NativeInteger(8));
+    EXPECT_EQ(RootOfUnity<BigInteger>(32, BigInteger(97)), BigInteger(19));
+    EXPECT_EQ(RootOfUnity<NativeInteger>(3, p), NativeInteger(35));
+}

@@ -218,6 +218,27 @@ IntType RootOfUnity(uint32_t m, const IntType& modulo) {
      *
      */
 
+    if (m == 2)
+        return result;
+    if (m >= 4 && (m & (m - 1)) == 0) {
+        // Odd powers are exactly the primitive m-th roots. Adding m/2 to
+        // an odd exponent negates its residue, so visit one root per pair.
+        IntType mu(modulo.ComputeMu());
+        const IntType step = result.ModMul(result, modulo, mu);
+        IntType x(result);
+        IntType minimum(result);
+        for (uint32_t i = 0; i < m / 4; ++i) {
+            const IntType opposite = modulo - x;
+            if (x < minimum)
+                minimum = x;
+            if (opposite < minimum)
+                minimum = opposite;
+            if (i + 1 < m / 4)
+                x.ModMulEq(step, modulo, mu);
+        }
+        return minimum;
+    }
+
     IntType mu(modulo.ComputeMu());
     IntType x(1);
     x.ModMulEq(result, modulo, mu);
