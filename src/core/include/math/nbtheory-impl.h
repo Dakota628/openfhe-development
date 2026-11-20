@@ -178,6 +178,24 @@ bool IsGenerator(const IntType& g, const IntType& q) {
     return cnt == primeFactors.size();
 }
 
+// Jacobi symbol for a nonnegative word residue and an odd positive modulus.
+inline int WideRootJacobi(uint64_t r, uint64_t n) {
+    int sign = 1;
+    while (r != 0) {
+        while ((r & 1) == 0) {
+            r >>= 1;
+            if ((n & 7) == 3 || (n & 7) == 5)
+                sign = -sign;
+        }
+        if ((r & 3) == 3 && (n & 3) == 3)
+            sign = -sign;
+        const auto next = n % r;
+        n = r;
+        r = next;
+    }
+    return n == 1 ? sign : 0;
+}
+
 /*
  finds roots of unity for given input.  Assumes the the input is a power of two.
  Mostly likely does not give correct results otherwise. input:  m as number
@@ -198,7 +216,23 @@ IntType RootOfUnity(uint32_t m, const IntType& modulo) {
         OPENFHE_THROW(errMsg);
     }
 
-    IntType gen = FindGenerator(modulo);
+    const IntType gen = [&]() -> IntType {
+        if constexpr (!std::is_same_v<IntType, NativeInteger>) {
+            const uint64_t bits = modulo.GetMSB();
+            if (bits > 60 && bits <= 4096 && m >= 2 && (m & (m - 1)) == 0 &&
+                modulo.Mod(IntType(8)) == IntType(1)) {
+                // For a known prime p == 1 mod 8, (a/p)=(p/a) for every odd a.
+                // A successful test is unconditional. If the finite search
+                // misses, retain the generic generator search.
+                for (uint64_t a = 3; a < bits * bits; a += 2) {
+                    auto r = modulo.Mod(IntType(a)).template ConvertToInt<uint64_t>();
+                    if (WideRootJacobi(r, a) == -1)
+                        return IntType(a);
+                }
+            }
+        }
+        return FindGenerator(modulo);
+    }();
     IntType result = gen.ModExp((modulo - IntType(1)).DividedBy(M), modulo);
     if (result == IntType(1))
         result = RootOfUnity(m, modulo);
